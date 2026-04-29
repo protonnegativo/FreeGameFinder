@@ -78,7 +78,45 @@ Variaveis principais:
 - `MAIL_SSL_TLS`: habilita SSL/TLS direto.
 - `FRONTEND_URL`: URL publica/local do frontend.
 
-## Executando com Docker
+## Subindo o projeto com Docker
+
+Este e o caminho recomendado para deixar tudo rodando localmente ou em uma VPS simples.
+
+### 1. Clonar o repositorio
+
+```bash
+git clone https://github.com/protonnegativo/FreeGameFinder.git
+cd FreeGameFinder
+```
+
+### 2. Criar o arquivo de ambiente
+
+```bash
+cp .env.example .env
+```
+
+Para rodar com o `docker-compose.yml` deste projeto, mantenha o banco apontando para o servico `db`:
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@db:5432/freegamefinder
+```
+
+Se quiser testar o cadastro por e-mail, preencha tambem as variaveis SMTP:
+
+```env
+MAIL_USERNAME=seu_usuario_smtp
+MAIL_PASSWORD=sua_senha_ou_app_password
+MAIL_FROM=seu_email@dominio.com
+MAIL_PORT=587
+MAIL_SERVER=smtp.seuprovedor.com
+MAIL_STARTTLS=True
+MAIL_SSL_TLS=False
+FRONTEND_URL=http://localhost:5173
+```
+
+Sem SMTP configurado, a listagem de jogos continua funcionando, mas o envio do e-mail de confirmacao de inscricao pode falhar.
+
+### 3. Construir e iniciar os containers
 
 Na raiz do projeto:
 
@@ -86,7 +124,13 @@ Na raiz do projeto:
 docker compose up --build
 ```
 
-Servicos:
+Para rodar em segundo plano:
+
+```bash
+docker compose up -d --build
+```
+
+Servicos expostos:
 
 - Frontend: `http://localhost:5173`
 - Backend: `http://localhost:8000`
@@ -95,6 +139,79 @@ Servicos:
 - PostgreSQL: `localhost:5432`
 
 Ao iniciar, o backend cria as tabelas automaticamente e executa uma primeira coleta de jogos.
+
+### 4. Conferir se esta tudo rodando
+
+Veja os containers:
+
+```bash
+docker compose ps
+```
+
+Teste a API:
+
+```bash
+curl http://localhost:8000/api/v1/health
+curl http://localhost:8000/api/v1/games
+```
+
+Abra o frontend no navegador:
+
+```text
+http://localhost:5173
+```
+
+### 5. Comandos uteis
+
+Ver logs de todos os servicos:
+
+```bash
+docker compose logs -f
+```
+
+Ver logs apenas do backend:
+
+```bash
+docker compose logs -f backend
+```
+
+Parar os containers:
+
+```bash
+docker compose down
+```
+
+Parar e apagar o volume do banco local:
+
+```bash
+docker compose down -v
+```
+
+Recriar depois de mudar dependencias ou Dockerfiles:
+
+```bash
+docker compose up -d --build
+```
+
+## Subindo em uma VPS
+
+Em uma VPS com Docker instalado, o fluxo basico e:
+
+```bash
+git clone https://github.com/protonnegativo/FreeGameFinder.git
+cd FreeGameFinder
+cp .env.example .env
+nano .env
+docker compose up -d --build
+```
+
+Depois, libere as portas necessarias no firewall/provedor:
+
+- `5173`: frontend Vite exposto pelo container.
+- `8000`: API FastAPI.
+- `5432`: PostgreSQL, apenas se voce realmente precisar acessar o banco fora da VPS.
+
+Para uso publico, o ideal e colocar Caddy, Nginx ou outro proxy reverso na frente da aplicacao e publicar somente HTTP/HTTPS. Nesse caso, atualize `FRONTEND_URL` no `.env` para o dominio real.
 
 ## Executando sem Docker
 
@@ -143,31 +260,13 @@ curl -X POST http://localhost:8000/api/v1/subscribe \
 
 As fontes externas podem mudar formato, disponibilidade ou limites. O scraper registra falhas em log e retorna lista vazia quando uma fonte nao responde.
 
-## Cuidados antes de publicar no GitHub
+## Cuidados de seguranca
 
 - Nao envie o arquivo `.env`; ele contem credenciais e esta no `.gitignore`.
+- Use senhas fortes para PostgreSQL e SMTP fora do ambiente local.
+- Evite expor a porta `5432` publicamente em VPS.
 - Confira se nao ha chaves, senhas ou dados pessoais em arquivos de codigo ou documentacao.
-- Se quiser publicar como repositorio privado, crie o repositorio privado no GitHub e faca o push da branch inicial.
 - Arquivos gerados como `__pycache__`, `node_modules`, `dist` e volumes locais ja estao ignorados.
-
-## Sugestao de primeiro push privado
-
-Depois de revisar os arquivos:
-
-```bash
-git init
-git add .
-git commit -m "Initial FreeGameFinder project"
-git branch -M main
-git remote add origin git@github.com:SEU_USUARIO/freegamefinder.git
-git push -u origin main
-```
-
-Se preferir usar GitHub CLI:
-
-```bash
-gh repo create freegamefinder --private --source=. --remote=origin --push
-```
 
 ## Status e proximos passos
 
