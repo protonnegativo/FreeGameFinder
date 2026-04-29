@@ -1,0 +1,181 @@
+# FreeGameFinder
+
+FreeGameFinder e uma aplicacao full stack para encontrar jogos temporariamente gratuitos, centralizar as ofertas em uma interface simples e permitir que usuarios recebam alertas por e-mail.
+
+O projeto usa um backend em FastAPI para coletar dados da Epic Games Store e de ofertas Steam via GamerPower, persiste os jogos em PostgreSQL e expoe uma API consumida por um frontend React com Vite e Tailwind CSS.
+
+## Funcionalidades
+
+- Listagem de jogos gratuitos encontrados nas fontes configuradas.
+- Coleta automatica a cada 30 minutos com APScheduler.
+- Cadastro de e-mail para alertas.
+- Confirmacao de inscricao por double opt-in.
+- API REST com endpoint de saude para verificar conexao com o banco.
+- Ambiente local com Docker Compose.
+
+## Stack
+
+- Backend: Python 3.11, FastAPI, SQLAlchemy, APScheduler, httpx.
+- Frontend: React 18, Vite, Tailwind CSS.
+- Banco de dados: PostgreSQL 15.
+- E-mail: SMTP via fastapi-mail.
+- Infra local: Docker e Docker Compose.
+
+## Estrutura
+
+```text
+.
+├── backend/
+│   ├── main.py              # API, modelos, rotas e agendador
+│   ├── scraper.py           # Coleta e normalizacao das ofertas
+│   ├── email_utils.py       # Envio de e-mail de confirmacao
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx          # Interface principal
+│   │   ├── main.jsx
+│   │   └── index.css
+│   ├── package.json
+│   ├── tailwind.config.js
+│   ├── vite.config.js
+│   └── Dockerfile
+├── docker-compose.yml
+├── ideia.md                 # Documento de produto/arquitetura inicial
+└── .env.example
+```
+
+## Requisitos
+
+- Docker e Docker Compose.
+- Opcional para desenvolvimento sem Docker:
+  - Python 3.11+
+  - Node.js 20+
+  - PostgreSQL 15+
+
+## Configuracao
+
+Crie um arquivo `.env` na raiz a partir do exemplo:
+
+```bash
+cp .env.example .env
+```
+
+Preencha os dados de SMTP antes de testar inscricao por e-mail. Para uso local com Docker, os valores de PostgreSQL do exemplo ja funcionam.
+
+Variaveis principais:
+
+- `POSTGRES_USER`: usuario do banco usado pelo container.
+- `POSTGRES_PASSWORD`: senha do banco usado pelo container.
+- `POSTGRES_DB`: nome do banco.
+- `DATABASE_URL`: URL de conexao usada pelo backend.
+- `MAIL_USERNAME`: usuario SMTP.
+- `MAIL_PASSWORD`: senha, app password ou chave do provedor SMTP.
+- `MAIL_FROM`: remetente dos e-mails.
+- `MAIL_PORT`: porta SMTP.
+- `MAIL_SERVER`: servidor SMTP.
+- `MAIL_STARTTLS`: habilita STARTTLS.
+- `MAIL_SSL_TLS`: habilita SSL/TLS direto.
+- `FRONTEND_URL`: URL publica/local do frontend.
+
+## Executando com Docker
+
+Na raiz do projeto:
+
+```bash
+docker compose up --build
+```
+
+Servicos:
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8000`
+- Documentacao da API: `http://localhost:8000/docs`
+- Health check: `http://localhost:8000/api/v1/health`
+- PostgreSQL: `localhost:5432`
+
+Ao iniciar, o backend cria as tabelas automaticamente e executa uma primeira coleta de jogos.
+
+## Executando sem Docker
+
+Backend:
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Nesse modo, confirme que `DATABASE_URL` aponta para um PostgreSQL acessivel.
+
+## Endpoints
+
+Base local: `http://localhost:8000`
+
+- `GET /`: mensagem de boas-vindas.
+- `GET /api/v1/games`: lista jogos encontrados, ordenados pelos mais recentes.
+- `POST /api/v1/subscribe`: cadastra um e-mail e envia confirmacao.
+- `GET /api/v1/subscribe/confirm?token=...`: confirma a inscricao.
+- `GET /api/v1/health`: verifica conectividade com o banco.
+
+Exemplo de inscricao:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/subscribe \
+  -H "Content-Type: application/json" \
+  -d '{"email":"usuario@example.com"}'
+```
+
+## Fontes de dados
+
+- Epic Games Store: API publica de promocoes gratuitas para `pt-BR`/Brasil.
+- Steam: API publica da GamerPower filtrada para giveaways de jogos na plataforma Steam.
+
+As fontes externas podem mudar formato, disponibilidade ou limites. O scraper registra falhas em log e retorna lista vazia quando uma fonte nao responde.
+
+## Cuidados antes de publicar no GitHub
+
+- Nao envie o arquivo `.env`; ele contem credenciais e esta no `.gitignore`.
+- Confira se nao ha chaves, senhas ou dados pessoais em arquivos de codigo ou documentacao.
+- Se quiser publicar como repositorio privado, crie o repositorio privado no GitHub e faca o push da branch inicial.
+- Arquivos gerados como `__pycache__`, `node_modules`, `dist` e volumes locais ja estao ignorados.
+
+## Sugestao de primeiro push privado
+
+Depois de revisar os arquivos:
+
+```bash
+git init
+git add .
+git commit -m "Initial FreeGameFinder project"
+git branch -M main
+git remote add origin git@github.com:SEU_USUARIO/freegamefinder.git
+git push -u origin main
+```
+
+Se preferir usar GitHub CLI:
+
+```bash
+gh repo create freegamefinder --private --source=. --remote=origin --push
+```
+
+## Status e proximos passos
+
+O projeto ja possui a base funcional de API, coleta, frontend e inscricao. Melhorias naturais para as proximas versoes:
+
+- Parametrizar a URL da API no frontend com variavel `VITE_API_URL`.
+- Usar `FRONTEND_URL`/URL de backend real no link de confirmacao por e-mail.
+- Adicionar filtros por plataforma e status da oferta.
+- Criar testes automatizados para parser do scraper e rotas principais.
+- Adicionar rota de descadastro.
+- Enviar alertas apenas quando novos jogos forem encontrados.
