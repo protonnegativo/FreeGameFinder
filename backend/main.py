@@ -9,11 +9,11 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from decimal import Decimal
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import logging
 
 from scraper import fetch_epic_games_free_games, fetch_steam_free_games
-from email_utils import send_verification_email
+from email_utils import send_verification_email, send_new_games_alert
 
 # Configurações do Banco de Dados
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/freegamefinder")
@@ -79,8 +79,9 @@ app = FastAPI(
 )
 
 # Configuração do CORS
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
 origins = [
-    "http://localhost:5173",  # Endereço do frontend em desenvolvimento
+    frontend_url,  # Endereço do frontend configurado no .env
 ]
 
 app.add_middleware(
@@ -101,18 +102,28 @@ async def run_scraper_and_update_db():
         # Combina os resultados de todas as plataformas
         all_games: List[Dict] = epic_games + steam_games
         
-        new_games_count = 0
+        new_games_added = []
         for game_data in all_games:
             # Verifica se o jogo já existe no banco de dados
             exists = db.query(DBGame).filter(DBGame.title == game_data['title'], DBGame.platform == game_data['platform']).first()
             if not exists:
                 new_game = DBGame(**game_data)
                 db.add(new_game)
-                new_games_count += 1
+                new_games_added.append(game_data)
         
-        if new_games_count > 0:
+        if new_games_added:
             db.commit()
-            logger.info(f"{new_games_count} novo(s) jogo(s) adicionado(s) ao banco de dados.")
+            logger.info(f"{len(new_games_added)} novo(s) jogo(s) adicionado(s) ao banco de dados.")
+            
+            # Busca apenas usuários que confirmaram o e-mail
+            verified_subs = db.query(DBSubscriber.email).filter(DBSubscriber.is_verified == True).all()
+            emails = [sub.email for sub in verified_subs]
+            
+            if emails:
+                try:
+                    await send_new_games_alert(emails, new_games_added)
+                except Exception as e:
+                    logger.error(f"Falha ao enviar e-mails em lote: {e}")
         else:
             logger.info("Nenhum jogo novo encontrado.")
     finally:
@@ -180,8 +191,13 @@ def health_check():
     except Exception as e:
         return {"status": "error", "database": "disconnected", "details": str(e)}
 
+@app.post("/api/v1/scraper/run")
+async def force_run_scraper():
+    await run_scraper_and_update_db()
+    return {"message": "Varredura concluída!"}
+
 # Agendador para rodar o scraper periodicamente
-scheduler = BackgroundScheduler(timezone="UTC")
+scheduler = AsyncIOScheduler(timezone="UTC")
 scheduler.add_job(run_scraper_and_update_db, 'cron', minute='0,30')
 
 @app.on_event("startup")

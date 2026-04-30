@@ -6,8 +6,10 @@ function App() {
   const [email, setEmail] = useState('')
   const [subMessage, setSubMessage] = useState('')
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
   useEffect(() => {
-    fetch('http://localhost:8000/api/v1/games')
+    fetch(`${API_URL}/api/v1/games`)
       .then(res => res.json())
       .then(data => {
         setGames(data)
@@ -25,7 +27,7 @@ function App() {
     
     setSubMessage("Processando...")
     try {
-      const res = await fetch('http://localhost:8000/api/v1/subscribe', {
+      const res = await fetch(`${API_URL}/api/v1/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })

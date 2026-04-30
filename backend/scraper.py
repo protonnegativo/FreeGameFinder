@@ -1,5 +1,5 @@
 import httpx
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -7,6 +7,11 @@ logger = logging.getLogger(__name__)
 
 EPIC_GAMES_API_URL = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=pt-BR&country=BR&allowCountries=BR"
 GAMERPOWER_STEAM_API_URL = "https://www.gamerpower.com/api/giveaways?platform=steam&type=game"
+
+def to_utc_naive(value):
+    if value.tzinfo:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
 
 def parse_epic_games_data(data):
     games = []
@@ -49,8 +54,8 @@ def parse_epic_games_data(data):
                         "original_price": game_data["price"]["totalPrice"]["originalPrice"] / 100.0,
                         "cover_image_url": cover_image,
                         "claim_url": claim_url,
-                        "start_date": start_date,
-                        "end_date": end_date,
+                        "start_date": to_utc_naive(start_date),
+                        "end_date": to_utc_naive(end_date),
                     }
                     games.append(game)
         except (KeyError, IndexError, TypeError) as e:
@@ -67,7 +72,7 @@ async def fetch_epic_games_free_games():
             return parse_epic_games_data(response.json())
         except httpx.RequestError as e:
             logger.error(f"Erro ao buscar dados da Epic Games API: {e}")
-            return []
+            return None
 
 def parse_steam_games_data(data):
     games = []
@@ -119,4 +124,4 @@ async def fetch_steam_free_games():
             return parse_steam_games_data(response.json())
         except httpx.RequestError as e:
             logger.error(f"Erro ao buscar dados da API da Steam: {e}")
-            return []
+            return None
