@@ -72,7 +72,7 @@ async def fetch_epic_games_free_games():
             return parse_epic_games_data(response.json())
         except httpx.RequestError as e:
             logger.error(f"Erro ao buscar dados da Epic Games API: {e}")
-            return None
+            return []
 
 def parse_steam_games_data(data):
     games = []
@@ -124,4 +124,4 @@ async def fetch_steam_free_games():
             return parse_steam_games_data(response.json())
         except httpx.RequestError as e:
             logger.error(f"Erro ao buscar dados da API da Steam: {e}")
-            return None
+            return []

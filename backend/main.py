@@ -197,7 +197,13 @@ async def force_run_scraper():
     return {"message": "Varredura concluída!"}
 
 # Agendador para rodar o scraper periodicamente
-scheduler = AsyncIOScheduler(timezone="UTC")
+scheduler = AsyncIOScheduler(
+    timezone="UTC",
+    job_defaults={
+        'misfire_grace_time': 3600,  # Tolera atrasos de até 1 hora (útil se o host dormir)
+        'coalesce': True             # Agrupa múltiplas execuções perdidas em uma só
+    }
+)
 scheduler.add_job(run_scraper_and_update_db, 'cron', minute='0,30')
 
 @app.on_event("startup")
