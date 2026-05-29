@@ -1,5 +1,7 @@
 # FreeGameFinder
 
+![Screenshot do FreeGameFinder](./screenshot.png)
+
 FreeGameFinder e uma aplicacao full stack para encontrar jogos temporariamente gratuitos, centralizar as ofertas em uma interface simples e permitir que usuarios recebam alertas por e-mail.
 
 O projeto usa um backend em FastAPI para coletar dados da Epic Games Store e de ofertas Steam via GamerPower, persiste os jogos em PostgreSQL e expoe uma API consumida por um frontend React com Vite e Tailwind CSS.
