@@ -121,9 +121,13 @@ async def run_scraper_and_update_db():
             
             if emails:
                 try:
+                    logger.info(f"Enviando alertas de novos jogos para {len(emails)} assinantes...")
                     await send_new_games_alert(emails, new_games_added)
+                    logger.info("Alertas enviados com sucesso.")
                 except Exception as e:
                     logger.error(f"Falha ao enviar e-mails em lote: {e}")
+            else:
+                logger.info("Nenhum assinante verificado para receber alertas.")
         else:
             logger.info("Nenhum jogo novo encontrado.")
     finally:
@@ -135,8 +139,12 @@ def read_root():
 
 @app.get("/api/v1/games", response_model=List[GameOut])
 def get_games(db: Session = Depends(get_db)):
-    # Retorna os jogos ordenados pela data de criação, mais recentes primeiro
-    games = db.query(DBGame).order_by(desc(DBGame.created_at)).all()
+    # Retorna apenas jogos que estão em promoção no momento
+    now = datetime.utcnow()
+    games = db.query(DBGame).filter(
+        (DBGame.end_date >= now) | (DBGame.end_date == None),
+        (DBGame.start_date <= now) | (DBGame.start_date == None)
+    ).order_by(desc(DBGame.created_at)).all()
     return games
 
 @app.post("/api/v1/subscribe")
