@@ -5,10 +5,12 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [email, setEmail] = useState('')
   const [subMessage, setSubMessage] = useState('')
+  const [notifLoading, setNotifLoading] = useState(false)
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-  useEffect(() => {
+  const fetchGames = () => {
+    setLoading(true)
     fetch(`${API_URL}/api/v1/games`)
       .then(res => res.json())
       .then(data => {
@@ -19,6 +21,10 @@ function App() {
         console.error("Erro ao buscar jogos:", err)
         setLoading(false)
       })
+  }
+
+  useEffect(() => {
+    fetchGames()
   }, [])
 
   const handleSubscribe = async (e) => {
@@ -40,13 +46,29 @@ function App() {
     }
   }
 
+  const handleManualNotification = async () => {
+    setNotifLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/api/v1/notifications/send`, {
+        method: 'POST'
+      })
+      const data = await res.json()
+      alert(data.message)
+      if (res.ok) fetchGames() // Atualiza a lista para refletir o novo status
+    } catch (err) {
+      alert("Erro ao tentar enviar notificações.")
+    } finally {
+      setNotifLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center p-8 font-sans">
       <header className="mb-12 text-center mt-8 w-full max-w-lg">
         <h1 className="text-5xl font-bold text-primary mb-4 tracking-tight">FreeGameFinder</h1>
         <p className="text-xl opacity-80 mb-8">Nunca mais perca um jogo grátis.</p>
         
-        <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-2 w-full">
+        <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-2 w-full mb-4">
           <input 
             type="email" 
             placeholder="Cadastre seu e-mail..." 
@@ -60,6 +82,14 @@ function App() {
           </button>
         </form>
         {subMessage && <p className="mt-4 text-sm text-primary font-semibold">{subMessage}</p>}
+
+        <button 
+          onClick={handleManualNotification}
+          disabled={notifLoading}
+          className="mt-4 text-xs font-bold uppercase tracking-widest text-primary border border-primary/30 py-2 px-4 rounded hover:bg-primary/10 transition-colors disabled:opacity-50"
+        >
+          {notifLoading ? "Enviando..." : "Disparar Alertas Pendentes"}
+        </button>
       </header>
       
       <main className="w-full max-w-5xl">

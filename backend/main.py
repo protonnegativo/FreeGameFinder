@@ -94,6 +94,51 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+async def send_notifications_for_pending_games(db: Session):
+    """
+    Busca jogos que ainda não foram notificados e envia para os assinantes.
+    """
+    pending_games = db.query(DBGame).filter(DBGame.email_sent == False).all()
+    
+    if not pending_games:
+        logger.info("Nenhum jogo pendente de notificação.")
+        return 0
+
+    # Busca apenas usuários que confirmaram o e-mail
+    verified_subs = db.query(DBSubscriber.email).filter(DBSubscriber.is_verified == True).all()
+    emails = [sub.email for sub in verified_subs]
+    
+    if emails:
+        try:
+            # Converte objetos do banco para o formato de dicionário esperado pela utils
+            games_data = [
+                {
+                    "title": g.title,
+                    "platform": g.platform,
+                    "original_price": g.original_price,
+                    "cover_image_url": g.cover_image_url,
+                    "claim_url": g.claim_url
+                }
+                for g in pending_games
+            ]
+            
+            logger.info(f"Enviando alertas de {len(pending_games)} jogo(s) para {len(emails)} assinantes...")
+            await send_new_games_alert(emails, games_data)
+            
+            # Marca como enviado no banco de dados
+            for game_obj in pending_games:
+                game_obj.email_sent = True
+            db.commit()
+            
+            logger.info("Alertas enviados e marcados como concluídos.")
+            return len(pending_games)
+        except Exception as e:
+            logger.error(f"Falha ao enviar e-mails em lote: {e}")
+            raise e
+    else:
+        logger.info("Nenhum assinante verificado para receber alertas.")
+        return 0
+
 async def run_scraper_and_update_db():
     logger.info("Iniciando a varredura por jogos gratuitos...")
     db = SessionLocal()
@@ -104,40 +149,20 @@ async def run_scraper_and_update_db():
         # Combina os resultados de todas as plataformas
         all_games: List[Dict] = epic_games + steam_games
         
-        new_games_objs = []
-        new_games_data = []
+        new_games_added = False
         for game_data in all_games:
             # Verifica se o jogo já existe no banco de dados
             exists = db.query(DBGame).filter(DBGame.title == game_data['title'], DBGame.platform == game_data['platform']).first()
             if not exists:
                 new_game = DBGame(**game_data)
                 db.add(new_game)
-                new_games_objs.append(new_game)
-                new_games_data.append(game_data)
+                new_games_added = True
         
-        if new_games_objs:
+        if new_games_added:
             db.commit()
-            logger.info(f"{len(new_games_objs)} novo(s) jogo(s) adicionado(s) ao banco de dados.")
-            
-            # Busca apenas usuários que confirmaram o e-mail
-            verified_subs = db.query(DBSubscriber.email).filter(DBSubscriber.is_verified == True).all()
-            emails = [sub.email for sub in verified_subs]
-            
-            if emails:
-                try:
-                    logger.info(f"Enviando alertas de novos jogos para {len(emails)} assinantes...")
-                    await send_new_games_alert(emails, new_games_data)
-                    
-                    # Marca como enviado no banco de dados
-                    for game_obj in new_games_objs:
-                        game_obj.email_sent = True
-                    db.commit()
-                    
-                    logger.info("Alertas enviados e marcados como concluídos no banco de dados.")
-                except Exception as e:
-                    logger.error(f"Falha ao enviar e-mails em lote: {e}")
-            else:
-                logger.info("Nenhum assinante verificado para receber alertas.")
+            logger.info("Novos jogo(s) adicionado(s) ao banco de dados.")
+            # Chama a função de notificação para processar os novos jogos (que estarão com email_sent=False)
+            await send_notifications_for_pending_games(db)
         else:
             logger.info("Nenhum jogo novo encontrado.")
     finally:
@@ -156,6 +181,16 @@ def get_games(db: Session = Depends(get_db)):
         (DBGame.start_date <= now) | (DBGame.start_date == None)
     ).order_by(desc(DBGame.created_at)).all()
     return games
+
+@app.post("/api/v1/notifications/send")
+async def manual_send_notifications(db: Session = Depends(get_db)):
+    try:
+        count = await send_notifications_for_pending_games(db)
+        if count > 0:
+            return {"message": f"Alertas enviados para {count} jogo(s)!"}
+        return {"message": "Nenhum jogo pendente de notificação encontrado."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/subscribe")
 async def subscribe(subscriber: SubscriberIn, db: Session = Depends(get_db)):
