@@ -59,6 +59,7 @@ class GameOut(BaseModel):
     cover_image_url: Optional[str] = None
     claim_url: str
     email_sent: bool = False
+    created_at: datetime
     
     model_config = {"from_attributes": True}
 
