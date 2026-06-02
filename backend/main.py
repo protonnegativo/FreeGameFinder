@@ -36,6 +36,7 @@ class DBGame(Base):
     claim_url = Column(Text, nullable=False)
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
+    email_sent = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class DBSubscriber(Base):
@@ -57,6 +58,7 @@ class GameOut(BaseModel):
     original_price: Optional[Decimal] = None
     cover_image_url: Optional[str] = None
     claim_url: str
+    email_sent: bool = False
     
     model_config = {"from_attributes": True}
 
@@ -102,18 +104,20 @@ async def run_scraper_and_update_db():
         # Combina os resultados de todas as plataformas
         all_games: List[Dict] = epic_games + steam_games
         
-        new_games_added = []
+        new_games_objs = []
+        new_games_data = []
         for game_data in all_games:
             # Verifica se o jogo já existe no banco de dados
             exists = db.query(DBGame).filter(DBGame.title == game_data['title'], DBGame.platform == game_data['platform']).first()
             if not exists:
                 new_game = DBGame(**game_data)
                 db.add(new_game)
-                new_games_added.append(game_data)
+                new_games_objs.append(new_game)
+                new_games_data.append(game_data)
         
-        if new_games_added:
+        if new_games_objs:
             db.commit()
-            logger.info(f"{len(new_games_added)} novo(s) jogo(s) adicionado(s) ao banco de dados.")
+            logger.info(f"{len(new_games_objs)} novo(s) jogo(s) adicionado(s) ao banco de dados.")
             
             # Busca apenas usuários que confirmaram o e-mail
             verified_subs = db.query(DBSubscriber.email).filter(DBSubscriber.is_verified == True).all()
@@ -122,8 +126,14 @@ async def run_scraper_and_update_db():
             if emails:
                 try:
                     logger.info(f"Enviando alertas de novos jogos para {len(emails)} assinantes...")
-                    await send_new_games_alert(emails, new_games_added)
-                    logger.info("Alertas enviados com sucesso.")
+                    await send_new_games_alert(emails, new_games_data)
+                    
+                    # Marca como enviado no banco de dados
+                    for game_obj in new_games_objs:
+                        game_obj.email_sent = True
+                    db.commit()
+                    
+                    logger.info("Alertas enviados e marcados como concluídos no banco de dados.")
                 except Exception as e:
                     logger.error(f"Falha ao enviar e-mails em lote: {e}")
             else:

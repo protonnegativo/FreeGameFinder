@@ -75,9 +75,23 @@ function App() {
                   className="w-full h-48 object-cover border-b border-gray-800"
                 />
                 <div className="p-6 flex flex-col flex-grow">
-                  <h2 className="text-xl font-bold text-textPrimary line-clamp-2 mb-2">{game.title}</h2>
-                  <div className="text-sm font-semibold text-gray-400 mb-4 bg-gray-800/50 self-start px-2 py-1 rounded">
-                    {game.platform}
+                  <div className="flex justify-between items-start mb-2">
+                    <h2 className="text-xl font-bold text-textPrimary line-clamp-2">{game.title}</h2>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <div className="text-sm font-semibold text-gray-400 bg-gray-800/50 px-2 py-1 rounded">
+                      {game.platform}
+                    </div>
+                    {game.email_sent ? (
+                      <div className="text-sm font-semibold text-primary bg-primary/10 px-2 py-1 rounded border border-primary/20">
+                        ✅ E-mail Enviado
+                      </div>
+                    ) : (
+                      <div className="text-sm font-semibold text-gray-500 bg-gray-800/30 px-2 py-1 rounded border border-gray-700/30">
+                        ⏳ Não Enviado
+                      </div>
+                    )}
                   </div>
                   
                   <div className="mt-auto pt-4 flex items-center justify-between border-t border-gray-800/50">
